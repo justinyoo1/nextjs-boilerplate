@@ -7,15 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
+    "test": "vitest run"
+
   },
-"dependencies": {
-  "@supabase/supabase-js": "^2.45.0",
-  "next": "...leave the rest as is...",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "vitest": "^3.2.4",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
