@@ -385,6 +385,7 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
       {stats.length > 0 && (
         <div className="card">
           <h3 className="card-title">Mastery overview</h3>
+          <p className="muted" style={{ marginTop: -4 }}>Recent sessions count more than older ones.</p>
           {stats.map((s) => (
             <div key={s.name} className="bar-row">
               <div className="bar-label">
