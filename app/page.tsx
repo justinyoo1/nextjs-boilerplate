@@ -357,8 +357,7 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
   }
 
   // Average mastery per topic (case-insensitive), weakest first
-      const stats = topicStats(sessions);
-  const weakest = stats[0];
+  const stats = topicStats(sessions, today());  const weakest = stats[0];
 
   return (
     <div>
