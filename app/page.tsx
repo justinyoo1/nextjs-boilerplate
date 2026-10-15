@@ -6,6 +6,8 @@ import type { Session as AuthSession } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { topicStats } from "./mastery";
 import { findSimilarTopic } from "./similarity";
+import { norm, recommendNext, wouldCreateCycle } from "./graph";
+import type { Edge } from "./graph";
 type Student = { id: string; name: string };
 type TopicRow = { id: string; topic: string; mastery: number };
 type SessionRow = {
@@ -268,10 +270,12 @@ function Tracker() {
           <button key={s.id} className="student" onClick={() => setSelected(s)}>
             <span className="avatar">{s.name.charAt(0).toUpperCase()}</span>
             <span className="student-name">{s.name}</span>
-            <span className="chev">›</span>
+                     <span className="chev">›</span>
           </button>
         ))
       )}
+
+      <PrereqEditor />
     </div>
   );
 }
@@ -288,6 +292,14 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
 
   const [err, setErr] = useState("");
   const [suggestion, setSuggestion] = useState<string | null>(null);
+    const [edges, setEdges] = useState<Edge[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("topic_prereqs")
+      .select("topic, prereq")
+      .then(({ data }) => setEdges((data as Edge[]) ?? []));
+  }, []);
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("sessions")
@@ -357,7 +369,7 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
   }
 
   // Average mastery per topic (case-insensitive), weakest first
-  const stats = topicStats(sessions, today());  const weakest = stats[0];
+  const stats = topicStats(sessions, today());  const next = recommendNext(stats, edges);
 
   return (
     <div>
@@ -375,10 +387,15 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
         </div>
       </div>
 
-      {weakest && (
+      {stats.length > 0 && (
         <div className="callout">
-          <strong>Suggested focus next:</strong> {weakest.name} (average mastery{" "}
-          {weakest.avg.toFixed(1)} out of 5)
+          {next ? (
+            <>
+              <strong>Suggested focus next:</strong> {next}
+            </>
+          ) : (
+            <strong>Every tracked topic is mastered. Time to introduce a new one!</strong>
+          )}
         </div>
       )}
 
@@ -517,6 +534,104 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
           </div>
         ))
       )}
+    </div>
+  );
+}
+type EdgeRow = Edge & { id: string };
+
+function PrereqEditor() {
+  const [edges, setEdges] = useState<EdgeRow[]>([]);
+  const [topic, setTopic] = useState("");
+  const [prereq, setPrereq] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from("topic_prereqs")
+      .select("id, topic, prereq")
+      .order("created_at");
+    setEdges((data as EdgeRow[]) ?? []);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function add(ev: FormEvent) {
+    ev.preventDefault();
+    setErr("");
+    if (!topic.trim() || !prereq.trim()) return;
+
+    if (norm(topic) === norm(prereq)) {
+      setErr("A topic can't be its own prerequisite.");
+      return;
+    }
+    if (wouldCreateCycle(edges, topic, prereq)) {
+      setErr(
+        `That would create a loop: "${prereq.trim()}" already depends on "${topic.trim()}", directly or indirectly.`
+      );
+      return;
+    }
+
+    const { error } = await supabase
+      .from("topic_prereqs")
+      .insert({ topic: topic.trim(), prereq: prereq.trim() });
+    if (error) {
+      setErr(error.code === "23505" ? "That prerequisite is already added." : error.message);
+      return;
+    }
+    setTopic("");
+    setPrereq("");
+    load();
+  }
+
+  async function remove(id: string) {
+    await supabase.from("topic_prereqs").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div>
+      <h2 className="section-title">Topic prerequisites</h2>
+      <div className="card">
+        <p className="muted" style={{ marginTop: 0 }}>
+          Say which topics must come first. Suggestions will only recommend a topic once its
+          prerequisites are mastered.
+        </p>
+        <form onSubmit={add}>
+          <label className="label" style={{ marginTop: 0 }}>Topic</label>
+          <input
+            className="input"
+            placeholder="e.g. Quadratics"
+            value={topic}
+            onChange={(ev) => setTopic(ev.target.value)}
+          />
+          <label className="label">Requires first</label>
+          <input
+            className="input"
+            placeholder="e.g. Linear equations"
+            value={prereq}
+            onChange={(ev) => setPrereq(ev.target.value)}
+          />
+          <button className="btn" type="submit" style={{ width: "100%", marginTop: 16 }}>
+            Add prerequisite
+          </button>
+        </form>
+        {err && <div className="error">{err}</div>}
+
+        {edges.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            {edges.map((ed) => (
+              <span key={ed.id} className="chip">
+                {ed.prereq} → {ed.topic}
+                <button type="button" aria-label="Remove prerequisite" onClick={() => remove(ed.id)}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
