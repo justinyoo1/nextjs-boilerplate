@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { Session as AuthSession } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-
+import { topicStats } from "./mastery";
 type Student = { id: string; name: string };
 type TopicRow = { id: string; topic: string; mastery: number };
 type SessionRow = {
@@ -341,22 +341,7 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
   }
 
   // Average mastery per topic (case-insensitive), weakest first
-  const groups = new Map<string, { name: string; scores: number[] }>();
-  sessions.forEach((s) =>
-    s.session_topics.forEach((t) => {
-      const key = t.topic.trim().toLowerCase();
-      const g = groups.get(key) ?? { name: t.topic.trim(), scores: [] };
-      g.scores.push(t.mastery);
-      groups.set(key, g);
-    })
-  );
-  const stats = Array.from(groups.values())
-    .map((g) => ({
-      name: g.name,
-      avg: g.scores.reduce((a, b) => a + b, 0) / g.scores.length,
-      count: g.scores.length,
-    }))
-    .sort((a, b) => a.avg - b.avg);
+      const stats = topicStats(sessions);
   const weakest = stats[0];
 
   return (
