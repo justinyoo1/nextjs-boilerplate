@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import type { Session as AuthSession } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { topicStats } from "./mastery";
+import { findSimilarTopic } from "./similarity";
 type Student = { id: string; name: string };
 type TopicRow = { id: string; topic: string; mastery: number };
 type SessionRow = {
@@ -284,8 +285,9 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
   const [topicName, setTopicName] = useState("");
   const [mastery, setMastery] = useState(3);
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
 
+  const [err, setErr] = useState("");
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("sessions")
@@ -300,11 +302,25 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
     load();
   }, [load]);
 
-  function addTopic() {
-    if (!topicName.trim()) return;
-    setTopics([...topics, { topic: topicName.trim(), mastery }]);
+   function commitTopic(name: string) {
+    setTopics([...topics, { topic: name, mastery }]);
     setTopicName("");
     setMastery(3);
+    setSuggestion(null);
+  }
+
+  function addTopic() {
+    if (!topicName.trim()) return;
+    const existing = [
+      ...sessions.flatMap((s) => s.session_topics.map((t) => t.topic)),
+      ...topics.map((t) => t.topic),
+    ];
+    const similar = findSimilarTopic(topicName, existing);
+    if (similar) {
+      setSuggestion(similar);
+      return;
+    }
+    commitTopic(topicName.trim());
   }
 
   async function saveSession() {
@@ -410,7 +426,23 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
             Add topic
           </button>
         </div>
-
+        {suggestion && (
+          <div className="callout" style={{ marginTop: 12, marginBottom: 0 }}>
+            Did you mean <strong>{suggestion}</strong>?
+            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-sm" type="button" onClick={() => commitTopic(suggestion)}>
+                Use “{suggestion}”
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                type="button"
+                onClick={() => commitTopic(topicName.trim())}
+              >
+                Keep “{topicName.trim()}”
+              </button>
+            </div>
+          </div>
+        )}
         <label className="label">Mastery (1 = just started, 5 = solid)</label>
         <div className="seg">
           {[1, 2, 3, 4, 5].map((n) => (
