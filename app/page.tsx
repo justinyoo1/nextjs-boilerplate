@@ -483,4 +483,23 @@ function StudentView({ student, onBack }: { student: Student; onBack: () => void
       {!loaded ? (
         <p className="muted">Loading…</p>
       ) : sessions.length === 0 ? (
-        <div className="empty">No
+      <div className="empty">No sessions yet. Log your first session above to see progress here.</div>
+      ) : (
+        sessions.map((s) => (
+          <div key={s.id} className="card">
+            <div className="session-head">
+              <span className="session-date">{formatDate(s.session_date)}</span>
+            </div>
+            {s.session_topics.map((t) => (
+              <span key={t.id} className="chip">
+                <span className="dot" style={{ background: masteryColor(t.mastery) }} />
+                {t.topic} · {t.mastery}/5
+              </span>
+            ))}
+            {s.notes && <p className="notes">{s.notes}</p>}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
